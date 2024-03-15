@@ -1,0 +1,62 @@
+import tensorflow as tf
+
+
+def random_crop(image, img_height, img_width):
+    cropped_image = tf.image.random_crop(image, size=[img_height, img_width, 3])
+    return cropped_image
+
+# normalizing the images to [-1, 1]
+def normalize(image):
+    image = tf.cast(image, tf.float32)
+    image = (image / 127.5) - 1
+    return image
+
+def random_jitter(image):
+    # resizing to 286 x 286 x 3
+    image = tf.image.resize(image, [286, 286], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+    # randomly cropping to 256 x 256 x 3
+    image = random_crop(image, 256, 256)
+    # random mirroring
+    image = tf.image.random_flip_left_right(image)
+    return image
+
+def preprocess_image_train(image):
+    image = random_jitter(image)
+    image = normalize(image)
+    return image
+
+def preprocess_image_test(image):
+    image = normalize(image)
+    return image
+
+def preprocess_image_val(image):
+    image = normalize(image)
+    return image
+
+def preprocess_dataset(train_portrait, val_portrait, test_portrait, train_naruto, val_naruto, test_naruto,
+                       buffer_size, batch_size, val_batch_size):
+    # Dynamic optimization to make the best use of available resources
+    AUTOTUNE = tf.data.AUTOTUNE
+
+    # Apply preprocessing to each element in the cache
+    train_portrait = train_portrait.cache().map(
+        preprocess_image_train, num_parallel_calls=AUTOTUNE).shuffle(
+        buffer_size, seed=123).batch(batch_size)
+
+    train_naruto = train_naruto.cache().map(
+        preprocess_image_train, num_parallel_calls=AUTOTUNE).shuffle(
+        buffer_size, seed=123).batch(batch_size)
+
+    val_portrait = val_portrait.map(
+        preprocess_image_val, num_parallel_calls=AUTOTUNE).cache().batch(val_batch_size)
+
+    val_naruto = val_naruto.map(
+        preprocess_image_val, num_parallel_calls=AUTOTUNE).cache().batch(val_batch_size)
+
+    test_portrait = test_portrait.map(
+        preprocess_image_test, num_parallel_calls=AUTOTUNE).cache()
+
+    test_naruto = test_naruto.map(
+        preprocess_image_test, num_parallel_calls=AUTOTUNE).cache()
+
+    return train_portrait, val_portrait, test_portrait, train_naruto, val_naruto, test_naruto
